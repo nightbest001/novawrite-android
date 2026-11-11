@@ -1,0 +1,83 @@
+[package]
+name = "wordcraft-mobile"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autoexamples = false
+description = "NovaWrite: a word processor for Android (based on WordCraft), with the MCP tab"
+
+[lib]
+name = "wordcraft_mobile"
+# cdylib: Android loads it (android_main). rlib: lets `cargo check` and the unit tests run on a PC.
+crate-type = ["cdylib", "rlib"]
+
+# Not `[lints] workspace = true`: the Android entry point needs `#[unsafe(no_mangle)]`,
+# which the workspace forbids. Everything else in this crate stays safe (`deny`, allowed only in
+# `android.rs`).
+[lints.rust]
+unsafe_code = "deny"
+
+[dependencies]
+wordcraft-doc = { workspace = true }
+wordcraft-engine = { workspace = true }
+wordcraft-ui-egui = { workspace = true }
+egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+# The MCP bridge (`src/mcp_bridge.rs`) needs these two.
+ureq = "3"
+getrandom = "0.3"
+
+[target.'cfg(target_os = "android")'.dependencies]
+eframe = { workspace = true, features = ["android-native-activity"] }
+# Keep this at the version eframe uses (`cargo tree -i android-activity`).
+android-activity = "0.6"
+android_logger = "0.14"
+# Calls into the Android framework (system clipboard, share/print hand-off, Settings, file
+# intents) from `src/jni_host.rs`.
+jni = "0.21"
+
+# Not shipped: lets `cargo check` and `cargo test` run on a PC (the phone shell is only built for Android).
+[target.'cfg(all(not(target_os = "android"), not(target_os = "ios")))'.dependencies]
+eframe = { workspace = true, features = ["x11"] }
+
+[package.metadata.android]
+package = "com.nightbest001.novawrite"
+build_targets = ["aarch64-linux-android"]
+
+# The MCP bridge talks to the MCP server over HTTPS.
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+# Keeps the CPU awake while the MCP bridge is online and the screen is on.
+[[package.metadata.android.uses_permission]]
+name = "android.permission.WAKE_LOCK"
+
+[package.metadata.android.application]
+label = "NovaWrite"
+
+# One window only: a second "Open with" brings the running app forward instead of starting
+# another copy of the native activity.
+[package.metadata.android.application.activity]
+launch_mode = "singleTask"
+
+# "Open with NovaWrite" in file managers, mail and chat apps (Word, OpenDocument, RTF, text, Markdown).
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW", "android.intent.action.EDIT"]
+categories = ["android.intent.category.DEFAULT"]
+data = [
+    { scheme = "content", mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { scheme = "content", mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.template" },
+    { scheme = "content", mime_type = "application/msword" },
+    { scheme = "content", mime_type = "application/vnd.oasis.opendocument.text" },
+    { scheme = "content", mime_type = "application/rtf" },
+    { scheme = "content", mime_type = "text/rtf" },
+    { scheme = "content", mime_type = "text/plain" },
+    { scheme = "content", mime_type = "text/markdown" },
+    { scheme = "file", mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { scheme = "file", mime_type = "application/vnd.oasis.opendocument.text" },
+    { scheme = "file", mime_type = "application/rtf" },
+    { scheme = "file", mime_type = "text/plain" },
+]
