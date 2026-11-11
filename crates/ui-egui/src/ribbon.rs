@@ -287,6 +287,11 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                                 }
                                 if resp.clicked() {
                                     let _ = app.run("ui.tab", json!({"tab": tab}));
+                                    // Ribbon folded away (the phone's first run): a tap on a tab
+                                    // must bring its commands back, or Home / Insert look dead.
+                                    if app.ui.ribbon_collapsed && tab != "File" && !resp.double_clicked() {
+                                        app.ui.ribbon_collapsed = false;
+                                    }
                                 }
                                 if resp.double_clicked() && tab != "File" {
                                     let _ = app.run("ui.collapseRibbon", json!({}));

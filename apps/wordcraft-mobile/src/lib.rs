@@ -93,6 +93,8 @@ struct Shell {
     prefs_checked: Instant,
     /// Pemberitahuan update dari GitHub Releases.
     update: update::Updater,
+    /// The phone's interface size has been set (once, when the display scale is known).
+    scaled: bool,
 }
 
 impl Shell {
@@ -133,7 +135,7 @@ impl Shell {
         host.open_incoming(&mut app);
         host.touch_style(&cc.egui_ctx);
         let update = update::Updater::start(cc.egui_ctx.clone(), paths.settings.clone());
-        Self { app, host, mcp: mcp_status, prefs_path, prefs_json: saved.unwrap_or_default(), prefs_checked: Instant::now(), update }
+        Self { app, host, mcp: mcp_status, prefs_path, prefs_json: saved.unwrap_or_default(), prefs_checked: Instant::now(), update, scaled: false }
     }
 
     /// Write the preferences when they changed: a phone may kill the app without running
@@ -168,6 +170,18 @@ impl Shell {
 
 impl eframe::App for Shell {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // A phone's own scale (about 275 %) draws the desktop interface far too big. Once the scale is
+        // known, Auto becomes 75 % of it (about 205 %); a size chosen in File › Options is kept.
+        if !self.scaled
+            && let Some(native) = ctx.native_pixels_per_point()
+        {
+            self.scaled = true;
+            if self.app.ui.interface_size.is_auto()
+                && let Some(size) = wordcraft_ui_egui::theme::InterfaceSize::from_percent(f64::from(native) * 75.0)
+            {
+                self.app.ui.interface_size = size;
+            }
+        }
         self.app.logic(ctx);
         let online = wordcraft_ui_egui::mcp::lock(&self.mcp).status == McpStatus::Online;
         self.host.before_ui(ctx, &mut self.app, online);

@@ -4,7 +4,7 @@ Satu bagian per versi. Saat membuat tag `vX.Y.Z`, workflow memakai bagian `## vX
 dan isi itu juga yang tampil di jendela "Update tersedia" di app.
 Kalau bagian itu tidak ada, dipakai bagian `## Belum dirilis`. Ganti judulnya dengan nomor tag sebelum rilis.
 
-## Belum dirilis
+## v0.2.2
 
 ### Ditambahkan
 - Pemberitahuan update: saat app dibuka dan ada versi baru di GitHub, muncul jendela berisi catatan perubahan dan tombol Unduh.
