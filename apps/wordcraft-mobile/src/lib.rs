@@ -29,6 +29,7 @@ mod host;
 #[cfg(target_os = "android")]
 mod jni_host;
 mod mcp_bridge;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -90,6 +91,8 @@ struct Shell {
     /// The preferences as last written (or read).
     prefs_json: Vec<u8>,
     prefs_checked: Instant,
+    /// Pemberitahuan update dari GitHub Releases.
+    update: update::Updater,
 }
 
 impl Shell {
@@ -129,7 +132,8 @@ impl Shell {
         // Started with "Open with NovaWrite": open that file instead of the start screen's blank page.
         host.open_incoming(&mut app);
         host.touch_style(&cc.egui_ctx);
-        Self { app, host, mcp: mcp_status, prefs_path, prefs_json: saved.unwrap_or_default(), prefs_checked: Instant::now() }
+        let update = update::Updater::start(cc.egui_ctx.clone(), paths.settings.clone());
+        Self { app, host, mcp: mcp_status, prefs_path, prefs_json: saved.unwrap_or_default(), prefs_checked: Instant::now(), update }
     }
 
     /// Write the preferences when they changed: a phone may kill the app without running
@@ -179,6 +183,9 @@ impl eframe::App for Shell {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        if let Some(url) = self.update.show(ui.ctx()) {
+            self.host.open_url(&url);
+        }
         self.host.after_ui(ui.ctx());
     }
 

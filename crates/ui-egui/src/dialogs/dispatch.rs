@@ -1158,7 +1158,7 @@ fn about_dialog(ui: &mut Ui, d: &mut Dialog) -> bool {
             ui.label(crate::i18n::fmt(tl!("Version {version} ({build})"), &[("version", env!("CARGO_PKG_VERSION")), ("build", build)]));
             ui.label(tl!("A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team."));
             ui.add_space(6.0);
-            ui.hyperlink_to("Source code: github.com/nightbest001/wordcraft-mobile", "https://github.com/nightbest001/wordcraft-mobile");
+            ui.hyperlink_to("Source code: github.com/nightbest001/novawrite-android", "https://github.com/nightbest001/novawrite-android");
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tl!("MIT OR Apache-2.0. Copyright (c) 2026 ArtCraft Team and the WordCraft contributors.")).small().weak());
         }

@@ -86,6 +86,16 @@ impl Host {
         let _ = ctx;
     }
 
+    /// Open a link in the browser (the update window's Download button).
+    pub fn open_url(&self, url: &str) {
+        #[cfg(target_os = "android")]
+        if let Err(e) = crate::jni_host::open_url(url) {
+            log::warn!("cannot open {url}: {e}");
+        }
+        #[cfg(not(target_os = "android"))]
+        let _ = url;
+    }
+
     /// The file another app opened with NovaWrite, if the app was started that way.
     pub fn open_incoming(&self, app: &mut WordApp) {
         #[cfg(target_os = "android")]

@@ -8,7 +8,7 @@ version = "0.15.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
-repository = "https://github.com/nightbest001/wordcraft-mobile"
+repository = "https://github.com/nightbest001/novawrite-android"
 
 [workspace.dependencies]
 # internal
@@ -127,6 +127,8 @@ opt-level = 3
 lto = "thin"
 codegen-units = 16
 debug = 0
+# Buang simbol dari libwordcraft_mobile.so: APK jauh lebih kecil.
+strip = true
 
 # Required by craft-pdf: the backend rejects writers that failed during unwinding.
 [patch.crates-io]

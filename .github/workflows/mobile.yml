@@ -33,6 +33,17 @@ jobs:
       KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
+      # Versi dari tag (v0.2.0 -> 0.2.0). Dipakai app untuk membandingkan dengan release terbaru,
+      # dan jadi versionName/versionCode APK. Tanpa tag: 0.0.0-dev (app akan menawarkan update ke rilis terbaru).
+      - name: Set the version
+        run: |
+          if [ -n "$TAG" ]; then V="${TAG#v}"; else V="0.0.0-dev"; fi
+          echo "NOVAWRITE_VERSION=$V" >> "$GITHUB_ENV"
+          IFS=. read -r MA MI PA <<< "${V%%-*}"
+          CODE=$(( ${MA:-0} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))
+          [ "$CODE" -ge 1 ] || CODE=1
+          sed -i "s/^build_targets = .*/&\nversion_code = $CODE\nversion_name = \"$V\"/" apps/wordcraft-mobile/Cargo.toml
+          grep -n "version_code\|version_name" apps/wordcraft-mobile/Cargo.toml
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -49,9 +60,18 @@ jobs:
           "$SDKM" "platforms;android-30" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
-      - run: cargo install cargo-apk --locked
-      # With the ANDROID_KEYSTORE_BASE64 secret: a signed release APK. Without it: a debug APK
-      # (signed with the debug key; installs as is, but is not for a store).
+      # cargo-apk disimpan di cache supaya tidak dikompilasi ulang tiap run.
+      - uses: actions/cache@v4
+        id: apk-tool
+        with:
+          path: ~/.cargo/bin/cargo-apk
+          key: cargo-apk-0.10.0-${{ runner.os }}
+      - if: steps.apk-tool.outputs.cache-hit != 'true'
+        run: cargo install cargo-apk --version 0.10.0 --locked
+      # Selalu build release (opt 3, simbol dibuang): build dev menghasilkan APK 250 MB lebih.
+      # Dengan secret ANDROID_KEYSTORE_BASE64: ditandatangani dengan kunci tetapmu (bisa update di atas versi lama).
+      # Tanpa secret: kunci sementara dibuat di sini. APK bisa dipasang, tapi kuncinya beda tiap build,
+      # jadi hapus dulu versi lama sebelum memasang yang baru.
       - name: Build the APK
         working-directory: apps/wordcraft-mobile
         env:
@@ -59,12 +79,24 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-            export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/release.keystore"
             export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
-            cargo apk build --release
           else
-            cargo apk build
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -storepass android -keypass android \
+              -alias novawrite -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=NovaWrite CI"
+            export CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android
           fi
+          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/release.keystore"
+          cargo apk build --release
+      - name: Inspect the APK
+        run: |
+          apk=$(find target -path '*/apk/*.apk' | head -n 1)
+          ls -l "$apk"
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          "$BT/aapt" dump badging "$apk" | grep -E "^package|sdkVersion|targetSdkVersion|application-icon|launchable-activity|native-code" || true
+          "$BT/apksigner" verify --verbose "$apk" | head -5
+          # gagal kalau ikon atau pustaka native tidak ikut
+          "$BT/aapt" dump badging "$apk" | grep -q "application-icon" || { echo "APK tanpa ikon"; exit 1; }
+          unzip -l "$apk" | grep -q "lib/arm64-v8a/libwordcraft_mobile.so" || { echo "APK tanpa libwordcraft_mobile.so"; exit 1; }
       - name: Collect the APK
         run: |
           mkdir dist
@@ -74,11 +106,22 @@ jobs:
         with:
           name: novawrite-android-apk
           path: dist/*.apk
+      # Isi release = bagian CHANGELOG.md untuk tag ini; cadangan: bagian "Belum dirilis".
+      - name: Release notes (from CHANGELOG.md)
+        if: env.TAG != ''
+        run: |
+          awk -v t="## $TAG" 'index($0,t)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md > release-notes.md
+          [ -s release-notes.md ] || awk '/^## Belum dirilis/{f=1;next} /^## /{f=0} f' CHANGELOG.md > release-notes.md
+          [ -s release-notes.md ] || echo "NovaWrite $TAG" > release-notes.md
+          cat release-notes.md
       - name: Attach to the release
         if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "NovaWrite $TAG" --notes "NovaWrite $TAG"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "NovaWrite $TAG" --notes-file release-notes.md
+          fi
           gh release upload "$TAG" dist/*.apk --repo "$GITHUB_REPOSITORY" --clobber

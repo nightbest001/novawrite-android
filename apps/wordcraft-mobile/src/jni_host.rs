@@ -398,6 +398,26 @@ fn new_intent<'l>(env: &mut JNIEnv<'l>, action: &str) -> Jr<JObject<'l>> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Open a link
+// ---------------------------------------------------------------------------------------------
+
+/// Open `url` in the user's browser (an `ACTION_VIEW` intent).
+pub fn open_url(url: &str) -> Result<(), String> {
+    with_env(|env, act| {
+        let s = env.new_string(url)?;
+        let uri = env
+            .call_static_method("android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&s)])?
+            .l()?;
+        let intent = new_intent(env, "android.intent.action.VIEW")?;
+        env.call_method(&intent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;", &[JValue::Object(&uri)])?;
+        env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(0x1000_0000)])?;
+        env.call_method(act, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
+        Ok(())
+    })
+    .map_err(|e| format!("couldn't open the link: {e}"))
+}
+
+// ---------------------------------------------------------------------------------------------
 // Default app
 // ---------------------------------------------------------------------------------------------
 
