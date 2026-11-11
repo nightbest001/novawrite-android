@@ -33,21 +33,20 @@ jobs:
       KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
-      # Versi dari tag (v0.2.0 -> 0.2.0). Dipakai app untuk membandingkan dengan release terbaru,
-      # dan jadi versionName/versionCode APK. Tanpa tag: 0.0.0-dev (app akan menawarkan update ke rilis terbaru).
-      - name: Set the version
-        run: |
-          if [ -n "$TAG" ]; then V="${TAG#v}"; else V="0.0.0-dev"; fi
-          echo "NOVAWRITE_VERSION=$V" >> "$GITHUB_ENV"
-          IFS=. read -r MA MI PA <<< "${V%%-*}"
-          CODE=$(( ${MA:-0} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))
-          [ "$CODE" -ge 1 ] || CODE=1
-          sed -i "s/^build_targets = .*/&\nversion_code = $CODE\nversion_name = \"$V\"/" apps/wordcraft-mobile/Cargo.toml
-          grep -n "version_code\|version_name" apps/wordcraft-mobile/Cargo.toml
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
+      # Versi dari tag (v0.2.0 -> 0.2.0). cargo-apk memakai versi paket Cargo untuk versionName dan
+      # versionCode APK (dan menolak version_name/version_code di TOML), jadi versi workspace diganti di sini.
+      # Dibaca juga oleh app (NOVAWRITE_VERSION) untuk membandingkan dengan release terbaru.
+      # Tanpa tag: 0.0.0-dev (app akan menawarkan update ke rilis terbaru).
+      - name: Set the version
+        run: |
+          if [ -n "$TAG" ]; then V="${TAG#v}"; else V="0.0.0-dev"; fi
+          echo "NOVAWRITE_VERSION=$V" >> "$GITHUB_ENV"
+          sed -i '0,/^version = ".*"/s//version = "'"$V"'"/' Cargo.toml
+          grep -n '^version' Cargo.toml | head -1
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
