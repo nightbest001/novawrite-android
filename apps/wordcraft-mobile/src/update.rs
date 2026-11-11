@@ -6,6 +6,7 @@
 //! Versi app diambil dari `NOVAWRITE_VERSION` (diisi workflow dari tag, mis. `v0.2.0`). Build
 //! lokal tanpa variabel itu memakai versi paket.
 
+use wordcraft_ui_egui::theme::{Tokens, medium, regular, semibold};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
@@ -157,30 +158,46 @@ impl Updater {
         let info = self.info.clone()?;
         let mut open_url = None;
         let mut later = false;
+        let t = Tokens::get(ctx);
+        let frame = egui::Frame::NONE
+            .fill(t.panel)
+            .stroke(egui::Stroke::new(1.0, t.border))
+            .corner_radius(10)
+            .inner_margin(egui::Margin::same(16))
+            .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: egui::Color32::from_black_alpha(if t.dark { 120 } else { 40 }) });
         egui::Window::new("Update tersedia")
+            .title_bar(false)
             .collapsible(false)
             .resizable(false)
+            .frame(frame)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.set_max_width(300.0);
-                ui.label(egui::RichText::new(format!("NovaWrite {} sudah tersedia", info.tag)).strong());
-                ui.label(format!("Versi kamu: {}", current()));
+                let width = (ctx.content_rect().width() - 64.0).clamp(220.0, 320.0);
+                ui.set_max_width(width);
+                ui.spacing_mut().item_spacing = egui::vec2(8.0, 6.0);
+                ui.label(egui::RichText::new("Update tersedia").font(semibold(16.0)).color(t.text));
+                ui.label(egui::RichText::new(format!("NovaWrite {} sudah tersedia", info.tag)).font(medium(13.0)).color(t.text));
+                ui.label(egui::RichText::new(format!("Versi kamu: {}", current())).font(regular(12.0)).color(t.text_dim));
                 if !info.notes.is_empty() {
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new("Yang baru").strong());
-                    egui::ScrollArea::vertical().max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
-                        ui.label(&info.notes);
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("Yang baru").font(semibold(13.0)).color(t.text));
+                    egui::ScrollArea::vertical().max_height(200.0).auto_shrink([false, true]).show(ui, |ui| {
+                        ui.label(egui::RichText::new(&info.notes).font(regular(12.5)).color(t.text));
                     });
                 }
                 ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Unduh").clicked() {
+                ui.horizontal_wrapped(|ui| {
+                    let primary = egui::Button::new(egui::RichText::new("Unduh").font(medium(13.0)).color(t.on_accent)).fill(t.accent).corner_radius(6);
+                    if ui.add(primary).clicked() {
                         open_url = Some(if info.apk_url.is_empty() { info.page_url.clone() } else { info.apk_url.clone() });
                     }
-                    if ui.button("Halaman release").clicked() {
+                    let plain = |text: &str| {
+                        egui::Button::new(egui::RichText::new(text).font(medium(13.0)).color(t.text)).fill(t.input).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6)
+                    };
+                    if ui.add(plain("Halaman release")).clicked() {
                         open_url = Some(info.page_url.clone());
                     }
-                    if ui.button("Nanti").clicked() {
+                    if ui.add(plain("Nanti")).clicked() {
                         later = true;
                     }
                 });

@@ -80,6 +80,7 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
             export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
           else
+            echo "::warning title=Kunci sementara::Secret ANDROID_KEYSTORE_BASE64 belum diisi. APK ini memakai kunci sementara: versi lama harus dicopot dulu sebelum memasangnya."
             keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -storepass android -keypass android \
               -alias novawrite -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=NovaWrite CI"
             export CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android

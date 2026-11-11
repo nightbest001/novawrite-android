@@ -66,6 +66,30 @@ fn with_env<T>(f: impl FnOnce(&mut JNIEnv, &JObject) -> Jr<T>) -> Res<T> {
     out.map_err(|e| e.to_string())
 }
 
+/// The status bar's height in pixels, from the system's own `status_bar_height` resource. Used when
+/// the window is drawn under the bar and `content_rect` does not say how tall it is.
+pub fn status_bar_height_px() -> Option<i32> {
+    with_env(|env, activity| {
+        let res = env.call_method(activity, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+        let name = env.new_string("status_bar_height")?;
+        let kind = env.new_string("dimen")?;
+        let pkg = env.new_string("android")?;
+        let id = env
+            .call_method(
+                &res,
+                "getIdentifier",
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                &[JValue::Object(&name), JValue::Object(&kind), JValue::Object(&pkg)],
+            )?
+            .i()?;
+        if id == 0 {
+            return Ok(0);
+        }
+        env.call_method(&res, "getDimensionPixelSize", "(I)I", &[JValue::Int(id)])?.i()
+    })
+    .ok()
+}
+
 /// A Java string as a Rust one (`None` for null).
 fn jstr(env: &mut JNIEnv, s: &JObject) -> Jr<Option<String>> {
     if s.is_null() {

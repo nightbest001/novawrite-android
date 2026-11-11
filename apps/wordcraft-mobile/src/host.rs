@@ -17,13 +17,15 @@ pub struct Host {
     keyboard_up: bool,
     /// The window had focus on the last frame (a return from another app checks for a new file).
     focused: bool,
+    /// Frames still to draw after coming back from another app.
+    redraw_frames: u32,
     /// The wake lock and the screen-on flag are held for the MCP bridge.
     awake: bool,
 }
 
 impl Host {
     pub fn new(documents: &Path) -> Self {
-        Self { documents: documents.to_path_buf(), keyboard_up: false, focused: true, awake: false }
+        Self { documents: documents.to_path_buf(), keyboard_up: false, focused: true, redraw_frames: 0, awake: false }
     }
 
     /// Fill in the services a phone can offer.
@@ -86,6 +88,29 @@ impl Host {
         let _ = ctx;
     }
 
+    /// Room the system bars take, in points: (status bar on top, navigation bar at the bottom).
+    /// The window is drawn under them, so without this the clock and notification icons cover the
+    /// quick-access bar and the buttons at the bottom cover the status bar.
+    pub fn system_insets(&self, ctx: &egui::Context) -> (f32, f32) {
+        #[cfg(target_os = "android")]
+        {
+            let Some(app) = crate::jni_host::app() else { return (0.0, 0.0) };
+            let Some(win) = app.native_window() else { return (0.0, 0.0) };
+            let r = app.content_rect();
+            let ppp = ctx.pixels_per_point().max(0.5);
+            // content_rect says nothing (top 0) while the window is under the bar: ask the system.
+            let top_px = if r.top > 0 { r.top } else { crate::jni_host::status_bar_height_px().unwrap_or(0) };
+            let top = (top_px.max(0) as f32 / ppp).clamp(0.0, 80.0);
+            let bottom = ((win.height() - r.bottom).max(0) as f32 / ppp).clamp(0.0, 56.0);
+            (top, bottom)
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = ctx;
+            (0.0, 0.0)
+        }
+    }
+
     /// Open a link in the browser (the update window's Download button).
     pub fn open_url(&self, url: &str) {
         #[cfg(target_os = "android")]
@@ -116,6 +141,15 @@ impl Host {
         if focused && !self.focused {
             // Back from another app: a "Open with" may have brought a file.
             self.open_incoming(app);
+        }
+        if focused && !self.focused {
+            // Back from another app: the surface is new, so draw again for a moment (a black
+            // screen otherwise stays until the next touch).
+            self.redraw_frames = 90;
+        }
+        if self.redraw_frames > 0 {
+            self.redraw_frames -= 1;
+            ctx.request_repaint();
         }
         self.focused = focused;
         self.keep_awake(mcp_online);

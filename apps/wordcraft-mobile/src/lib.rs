@@ -171,18 +171,26 @@ impl Shell {
 impl eframe::App for Shell {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // A phone's own scale (about 275 %) draws the desktop interface far too big. Once the scale is
-        // known, Auto becomes 75 % of it (about 205 %); a size chosen in File › Options is kept.
+        // known, Auto becomes 62 % of it (about 170 %); a size chosen in File › Options is kept.
         if !self.scaled
             && let Some(native) = ctx.native_pixels_per_point()
         {
             self.scaled = true;
             if self.app.ui.interface_size.is_auto()
-                && let Some(size) = wordcraft_ui_egui::theme::InterfaceSize::from_percent(f64::from(native) * 75.0)
+                && let Some(size) = wordcraft_ui_egui::theme::InterfaceSize::from_percent(f64::from(native) * 62.0)
             {
                 self.app.ui.interface_size = size;
             }
         }
         self.app.logic(ctx);
+        // The page is as wide as the screen: a page at 100 % runs off the right edge, and so does the
+        // text typed at its right margin. Fit the page to the width until the user picks a zoom.
+        {
+            let v = &self.app.session.view;
+            if self.app.has_document() && v.fit.is_empty() && (v.zoom - 1.0).abs() < 0.001 {
+                let _ = self.app.run("view.zoom", serde_json::json!({ "value": "pageWidth" }));
+            }
+        }
         let online = wordcraft_ui_egui::mcp::lock(&self.mcp).status == McpStatus::Online;
         self.host.before_ui(ctx, &mut self.app, online);
         self.save_prefs(false);
@@ -196,6 +204,15 @@ impl eframe::App for Shell {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // The window is drawn under the status bar and the navigation bar: keep the app clear of them.
+        let (top, bottom) = self.host.system_insets(ui.ctx());
+        let fill = ui.visuals().panel_fill;
+        if top > 0.5 {
+            egui::Panel::top("system_top_inset").exact_size(top).show_separator_line(false).frame(egui::Frame::NONE.fill(fill)).show(ui, |_| {});
+        }
+        if bottom > 0.5 {
+            egui::Panel::bottom("system_bottom_inset").exact_size(bottom).show_separator_line(false).frame(egui::Frame::NONE.fill(fill)).show(ui, |_| {});
+        }
         self.app.ui(ui);
         if let Some(url) = self.update.show(ui.ctx()) {
             self.host.open_url(&url);
