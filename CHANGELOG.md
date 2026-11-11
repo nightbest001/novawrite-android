@@ -16,6 +16,7 @@ Kalau bagian itu tidak ada, dipakai bagian `## Belum dirilis`. Ganti judulnya de
 - Versi dan kode versi APK diambil dari nama tag release.
 
 ### Diperbaiki
+- APK di release sebelumnya adalah file sementara yang belum ditandatangani sehingga tidak bisa dipasang. Sekarang yang diunggah adalah APK akhir yang sudah ditandatangani, dan build gagal kalau tanda tangannya tidak valid.
 - Build GitHub Actions tidak lagi gagal saat memilih target contoh PC.
 
 ### Dihapus

@@ -88,18 +88,21 @@ jobs:
           cargo apk build --release
       - name: Inspect the APK
         run: |
-          apk=$(find target -path '*/apk/*.apk' | head -n 1)
+          apk=$(find target -path '*/apk/wordcraft_mobile.apk' | head -n 1)  # file akhir yang sudah ditandatangani, bukan *-unaligned.apk
+          [ -n "$apk" ] || { echo "APK akhir tidak ditemukan:"; find target -path '*/apk/*.apk'; exit 1; }
           ls -l "$apk"
           BT="$ANDROID_HOME/build-tools/34.0.0"
           "$BT/aapt" dump badging "$apk" | grep -E "^package|sdkVersion|targetSdkVersion|application-icon|launchable-activity|native-code" || true
-          "$BT/apksigner" verify --verbose "$apk" | head -5
+          # gagal kalau APK belum ditandatangani (HP menolaknya dengan "Aplikasi tidak terinstal")
+          "$BT/apksigner" verify --verbose --print-certs "$apk"
           # gagal kalau ikon atau pustaka native tidak ikut
           "$BT/aapt" dump badging "$apk" | grep -q "application-icon" || { echo "APK tanpa ikon"; exit 1; }
           unzip -l "$apk" | grep -q "lib/arm64-v8a/libwordcraft_mobile.so" || { echo "APK tanpa libwordcraft_mobile.so"; exit 1; }
       - name: Collect the APK
         run: |
           mkdir dist
-          apk=$(find target -path '*/apk/*.apk' | head -n 1)
+          apk=$(find target -path '*/apk/wordcraft_mobile.apk' | head -n 1)  # file akhir yang sudah ditandatangani, bukan *-unaligned.apk
+          [ -n "$apk" ] || { echo "APK akhir tidak ditemukan:"; find target -path '*/apk/*.apk'; exit 1; }
           cp "$apk" "dist/NovaWrite-${TAG:-dev}-android.apk"
       - uses: actions/upload-artifact@v4
         with:
